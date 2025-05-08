@@ -7,28 +7,8 @@ if (!isset($_SESSION['login']) || $_SESSION['login'] !== true) {
     exit;
 }
 
-// submission process handling (submitting)
-if ($_SERVER["REQUEST_METHOD"] == "GET" && !empty($_GET['nama']) && !empty($_GET['komentar'])) {
-    $nama = htmlspecialchars($_GET['nama']);
-    $komentar = htmlspecialchars($_GET['komentar']);
-    
-    // Menyimpan data ke database
-    $insert_query = "INSERT INTO tamu (nama, komentar) VALUES (?, ?)";
-    $insert_stmt = $conn->prepare($insert_query);
-    $insert_stmt->bind_param("ss", $nama, $komentar);
-    
-    if ($insert_stmt->execute()) {
-        // Redirect setelah penyimpanan berhasil
-        header("Location: buku_tamu.php");
-        exit;
-    } else {
-        $error_message = "Gagal menyimpan komentar: " . $conn->error;
-    }
-    $insert_stmt->close();
-}
-
 // Membaca data komentar dari database
-$select_query = "SELECT nama, komentar, waktu FROM tamu ORDER BY waktu DESC";
+$select_query = "SELECT name, comment, created_at FROM tamu ORDER BY created_at DESC";
 $result = $conn->query($select_query);
 ?>
 
@@ -139,6 +119,12 @@ $result = $conn->query($select_query);
             color: #f3f3f3;
             font-family: 'Lato', sans-serif;
         }
+
+        #hasil {
+            text-align: center;
+            font-weight: bold;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -148,13 +134,13 @@ $result = $conn->query($select_query);
             <a href="buku_tamu.php">Buku Tamu</a>
         </div>
         <div class="navbar-right">
-            <a href="logout.php" class="logout-btn" style = "color: #162860">Logout</a>
+            <a href="logout.php" class="logout-btn" style="color: #162860">Logout</a>
         </div>
     </div>
 
     <div class="tamu-container">
         <h1>Buku Tamu</h1>
-        <form action="" method="get">
+        <form id="formBukuTamu">
             <label for="name">Name:</label>
             <input type="text" id="name" name="name" required>
             
@@ -163,26 +149,45 @@ $result = $conn->query($select_query);
             
             <input type="submit" value="Submit" style="background-color: #ffd9ea; color: #162860; border: none; cursor: pointer; padding: 10px; border-radius: 5px;">
         </form>
+        <div id="hasil"></div>
     </div>
 
     <div class="comment-container">
         <h2>Daftar Pengunjung</h2>
         <hr>
         <?php
-        // reverse array agar yang paling baru yang muncul pertama
-        $submissions = array_reverse($submissions);
-        
-        // tampilkan submission menggunakan looping foreach as
-        foreach ($submissions as $submission) {
-            // pisahkan data submission (explode) dan assign ke variable array (list)
-            list($name, $comment, $timestamp) = explode('|', $submission);
-            
-            echo "<div class='comment'>";
-            echo "<b>Pengirim:</b> $name ($timestamp)<br>";
-            echo "<b>Komentar:</b> $comment";
-            echo "</div><hr>";
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                echo "<div class='comment'>";
+                echo "<b>Pengirim:</b> " . htmlspecialchars($row['name']) . " (" . $row['created_at'] . ")<br>";
+                echo "<b>Komentar:</b> " . htmlspecialchars($row['comment']);
+                echo "</div><hr>";
+            }
+        } else {
+            echo "<p>Belum ada komentar.</p>";
         }
         ?>
     </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $('#formBukuTamu').on('submit', function(e) {
+            e.preventDefault();
+
+            $.ajax({
+                url: 'simpan_tamu.php',
+                type: 'POST',
+                data: $(this).serialize(),
+                success: function(response) {
+                    $('#hasil').html(response);
+                    $('#formBukuTamu')[0].reset();
+                    setTimeout(() => location.reload(), 1000); // Reload untuk update komentar
+                },
+                error: function() {
+                    $('#hasil').html('Terjadi kesalahan saat mengirim.');
+                }
+            });
+        });
+    </script>
 </body>
 </html>
